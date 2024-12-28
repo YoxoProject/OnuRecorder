@@ -7,7 +7,7 @@ class RecordingSession {
         this.client = client;
         this.stageChannel = stageChannel;
         this.recordings = new Map();
-        this.MAX_SILENCE_MILLIS = 15 * 1000; // 15 secondes
+        this.MAX_SILENCE_MILLIS = 30 * 1000; // 30 secondes
         this.interval = null;
     }
 
