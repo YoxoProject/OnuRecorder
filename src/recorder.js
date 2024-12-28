@@ -2,111 +2,143 @@ const fs = require('fs');
 const path = require('path');
 const wav = require('wav');
 
-const recordings = new Map();
-const MAX_SILENCE_MILLIS = 15 * 1000; // 15 secondes
+class RecordingSession {
+    constructor(client, stageChannel) {
+        this.client = client;
+        this.stageChannel = stageChannel;
+        this.recordings = new Map();
+        this.MAX_SILENCE_MILLIS = 15 * 1000; // 15 secondes
+        this.interval = null;
+    }
 
-function startRecording(connection, channelId) {
+    async start() {
+        try {
+            if (!this.stageChannel.joinable) {
+                console.error(`Impossible de se connecter au salon : ${this.stageChannel.name}`);
+                return;
+            }
 
-    console.log(`Enregistrement commencé pour le salon : ${channelId}`);
-
-    setInterval(checkForSilence, 1000);
-
-    connection.on('speaking', (user, speaking) => {
-        const startSpeaking = speaking.bitfield === 1;
-        if (startSpeaking && !recordings.has(user.id)) {
-            const outputPath = path.join(__dirname, `${channelId.name}/${user.username}-${user.id}-${Date.now()}.pcm`);
-
-            // Create parent directories if they don't exist
-            fs.mkdirSync(path.dirname(outputPath), {recursive: true});
-
-            const audio = connection.receiver.createStream(user.id, {
-                mode: 'pcm',
-                end: 'manual',
+            const connection = await this.client.voice.joinChannel(this.stageChannel.id, {
+                selfMute: true,
+                selfDeaf: true,
+                selfVideo: false,
             });
 
-            audio.pipe(fs.createWriteStream(outputPath));
+            console.log(`Enregistrement commencé pour le salon : ${this.stageChannel.name}`);
 
-            audio.on("close", () => {
-                convertPcmToWav(outputPath, outputPath.replace('.pcm', '.wav')).then((message) => {
+            this.interval = setInterval(() => this.checkForSilence(), 1000);
+
+            connection.on('speaking', (user, speaking) => {
+                const startSpeaking = speaking.bitfield === 1;
+                if (startSpeaking && !this.recordings.has(user.id)) {
+                    this.startRecording(user, connection);
+                } else if (!startSpeaking) {
+                    const recording = this.recordings.get(user.id);
+                    if (recording) {
+                        recording.stopSpeaking = Date.now();
+                    }
+                } else {
+                    const recording = this.recordings.get(user.id);
+                    if (recording) {
+                        recording.stopSpeaking = null;
+                    }
+                }
+            });
+        } catch (error) {
+            console.error(`Erreur lors de la connexion au salon : ${error}`);
+        }
+    }
+
+    async stop() {
+        clearInterval(this.interval);
+
+        for (const recording of this.recordings.values()) {
+            recording.audio.destroy();
+        }
+
+        this.recordings.clear();
+        console.log(`Enregistrement terminé pour le salon : ${this.stageChannel.name}`);
+
+        try {
+            if (this.stageChannel.guild.members.me.voice.channelId === this.stageChannel.id) {
+                await this.stageChannel.guild.members.me.voice.disconnect();
+            }
+        } catch (error) {
+            console.error(`Erreur lors de la déconnexion : ${error.message}`);
+        }
+    }
+
+    startRecording(user, connection) {
+        const outputPath = path.join(
+            __dirname,
+            `recordings/${this.stageChannel.name}/${user.username}-${user.id}-${Date.now()}.pcm`
+        );
+
+        fs.mkdirSync(path.dirname(outputPath), {recursive: true});
+
+        const audio = connection.receiver.createStream(user.id, {
+            mode: 'pcm',
+            end: 'manual',
+        });
+
+        audio.pipe(fs.createWriteStream(outputPath));
+
+        audio.on('close', () => {
+            this.convertPcmToWav(outputPath, outputPath.replace('.pcm', '.wav'))
+                .then((message) => {
                     console.log(message);
-                    fs.unlinkSync(outputPath); // Remove the PCM file
-                }).catch((error) => {
+                    fs.unlinkSync(outputPath);
+                })
+                .catch((error) => {
                     console.error(error);
                 });
-            });
+        });
 
-            recordings.set(user.id, {
-                path: outputPath,
-                audio,
-                stopSpeaking: null,
-            });
-        } else if (!startSpeaking) {
-            const recording = recordings.get(user.id);
-            if (recording) {
-                recording.stopSpeaking = Date.now();
+        this.recordings.set(user.id, {
+            path: outputPath,
+            audio,
+            stopSpeaking: null,
+        });
+    }
+
+    checkForSilence() {
+        const currentTime = Date.now();
+
+        for (const [userId, recording] of this.recordings.entries()) {
+            if (recording.stopSpeaking && currentTime - recording.stopSpeaking > this.MAX_SILENCE_MILLIS) {
+                console.log(`Fermeture du flux pour inactivité : ${userId}`);
+                recording.audio.destroy();
+                this.recordings.delete(userId);
             }
         }
-    });
-}
-
-function stopRecording() {
-    for (const recording of recordings.values()) {
-        recording.audio.destroy(); // Stop the audio stream, which will also close the write stream and convert the PCM to WAV
     }
-    recordings.clear();
-    console.log('Enregistrement terminé');
-    console.log('Tous les flux ont été fermés');
-    console.log(recordings)
-}
 
-function checkForSilence() {
-    const currentTime = Date.now();
+    convertPcmToWav(inputPath, outputPath) {
+        return new Promise((resolve, reject) => {
+            try {
+                const pcmData = fs.readFileSync(inputPath);
+                const writer = new wav.Writer({
+                    channels: 2,
+                    sampleRate: 48000,
+                    bitDepth: 16,
+                });
 
-    for (const [userId, recording] of recordings.entries()) {
-        if (recording.stopSpeaking && currentTime - recording.stopSpeaking > MAX_SILENCE_MILLIS) {
-            console.log(`Fermeture du flux pour inactivité : ${userId}`);
-            recording.audio.destroy();
-            recordings.delete(userId);
-        }
+                const outputStream = fs.createWriteStream(outputPath);
+                writer.pipe(outputStream);
+                writer.on('finish', () => {
+                    resolve(`Conversion terminée : ${outputPath}`);
+                });
+                writer.on('error', (error) => {
+                    reject(`Erreur lors de la conversion : ${error.message}`);
+                });
+
+                writer.write(pcmData);
+                writer.end();
+            } catch (error) {
+                reject(`Erreur lors de la lecture du fichier PCM : ${error.message}`);
+            }
+        });
     }
 }
 
-/**
- * Convert a PCM file to WAV format
- * @param {string} inputPath - Path to the PCM file
- * @param {string} outputPath - Path for the resulting WAV file
- * @returns {Promise<string>} - Resolves with a success message
- */
-function convertPcmToWav(inputPath, outputPath) {
-    return new Promise((resolve, reject) => {
-        try {
-            // Read PCM data
-            const pcmData = fs.readFileSync(inputPath);
-            // WAV writer configuration
-            const writer = new wav.Writer({
-                channels: 2, // Stereo
-                sampleRate: 48000, // Match your recording sample rate
-                bitDepth: 16, // Match your recording a bit depth
-            });
-
-            const outputStream = fs.createWriteStream(outputPath);
-            writer.pipe(outputStream);
-            writer.on('finish', () => {
-                resolve(`Conversion terminée : ${outputPath}`);
-            });
-            writer.on('error', (error) => {
-                reject(`Erreur lors de la conversion : ${error.message}`);
-            });
-            // Write PCM data to WAV writer
-            writer.write(pcmData);
-            writer.end();
-        } catch (error) {
-            reject(`Erreur lors de la lecture du fichier PCM : ${error.message}`);
-        }
-    });
-}
-
-module.exports = {
-    startRecording,
-    stopRecording,
-};
+module.exports = {RecordingSession};
