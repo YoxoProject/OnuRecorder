@@ -6,6 +6,22 @@ const waitingList = []; // Liste des salons à enregistrer, partagée entre tous
 const activeBots = []; // Liste des bots actifs
 let must_assign_next_bot = false;
 
+const ONU_CHANNEL_IDS = [
+    "1297495880479408158", // MOCHA
+    "1142876034967027762", // BLUE
+    "1142876353801228348", // ORANGE
+    "1234150236293828678", // YELLOW
+    "1142882475849306243", // WHITE
+    "1142882371998326984", // PINK
+    "1142882601388998656", // BLACK
+    "1143617770538401902", // LIME
+    "1142882421277204651", // CYAN
+    "1142882303090114590", // CORAL
+    "1142882746998460416", // PURPLE
+    "1165297482725597305", // GREEN
+    "1144980485685133342" // RED
+]
+
 // Initialiser les bots avec les tokens
 function initializeBots() {
     for (const token of config.botTokens) {
@@ -17,7 +33,7 @@ function initializeBots() {
 
         client.on('stageInstanceCreate', async (stageInstance) => {
             if (token !== config.botTokens[0]) return; // Evite d'avoir 2 détetction simultanée (seul le premier bot détecte)
-            if (stageInstance.guild.id !== "1273675047453855845") return;
+            if (stageInstance.guild.id !== "1273675047453855845" && !ONU_CHANNEL_IDS.includes(stageInstance.id.toString())) return;
 
             const stageChannel = stageInstance.channel;
             if (!waitingList.includes(stageChannel)) {
