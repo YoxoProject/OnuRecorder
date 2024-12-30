@@ -37,11 +37,6 @@ class RecordingSession {
                     if (recording) {
                         recording.stopSpeaking = Date.now();
                     }
-                } else {
-                    const recording = this.recordings.get(user.id);
-                    if (recording) {
-                        recording.stopSpeaking = null;
-                    }
                 }
             });
         } catch (error) {
@@ -99,6 +94,24 @@ class RecordingSession {
             audio,
             stopSpeaking: null,
         });
+
+        audio.on("data", () => {
+            this.addBlank(user);
+        });
+    }
+
+    addBlank(user) {
+        const recording = this.recordings.get(user.id);
+        if (recording.stopSpeaking) {
+            const currentTime = Date.now();
+            const silenceBuffer = Buffer.alloc(48000 * 2 * 30, 0); // 30 seconds of silence at 48kHz, 16-bit stereo
+
+            const elapsed = currentTime - recording.stopSpeaking;
+            const silenceBytes = elapsed * 48 * 2; // Calculate bytes for silence duration
+            recording.audio.push(silenceBuffer.slice(0, silenceBytes));
+
+            recording.stopSpeaking = null;
+        }
     }
 
     checkForSilence() {
