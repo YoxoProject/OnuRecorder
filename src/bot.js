@@ -33,7 +33,7 @@ function initializeBots() {
 
         client.on('stageInstanceCreate', async (stageInstance) => {
             if (token !== config.botTokens[0]) return; // Evite d'avoir 2 détetction simultanée (seul le premier bot détecte)
-            if (stageInstance.guild.id !== "1273675047453855845" && !ONU_CHANNEL_IDS.includes(stageInstance.id.toString())) return;
+            if (stageInstance.guild.id !== "1273675047453855845" && !ONU_CHANNEL_IDS.includes(stageInstance.channelId.toString())) return;
 
             const stageChannel = stageInstance.channel;
             if (!waitingList.includes(stageChannel)) {
