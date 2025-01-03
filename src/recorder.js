@@ -64,9 +64,11 @@ class RecordingSession {
     }
 
     startRecording(user, connection) {
+        const formattedDate = new Date().toISOString().split("T")[0]; // Format YYYY-MM-DD
+
         const outputPath = path.join(
             __dirname,
-            `recordings/${this.stageChannel.name}/${user.username}-${user.id}-${Date.now()}.pcm`
+            `recordings/${channelIdRemapped(this.stageChannel.id.toString())}/${formattedDate}/${user.username}-${user.id}-${Date.now()}.pcm`
         );
 
         fs.mkdirSync(path.dirname(outputPath), {recursive: true});
