@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 const wav = require('wav');
+const {uploadRecordToS3} = require("./aws_upload.js");
+const {channelIdRemapped} = require("./aws_upload");
 
 class RecordingSession {
     constructor(client, stageChannel) {
@@ -80,15 +82,13 @@ class RecordingSession {
 
         audio.pipe(fs.createWriteStream(outputPath));
 
-        audio.on('close', () => {
-            this.convertPcmToWav(outputPath, outputPath.replace('.pcm', '.wav'))
-                .then((message) => {
-                    console.log(message);
-                    fs.unlinkSync(outputPath);
-                })
-                .catch((error) => {
-                    console.error(error);
-                });
+        audio.on('close', async () => {
+            const message = await this.convertPcmToWav(outputPath, outputPath.replace('.pcm', '.wav'));
+            console.log(message);
+            fs.unlinkSync(outputPath);
+
+            await new Promise((resolve) => setTimeout(resolve, 1000)); // Attendre 1 seconde pour éviter les problèmes de lecture
+            await uploadRecordToS3(outputPath.replace('.pcm', '.wav'), this.stageChannel);
         });
 
         this.recordings.set(user.id, {
