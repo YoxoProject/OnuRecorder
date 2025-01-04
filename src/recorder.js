@@ -89,6 +89,7 @@ class RecordingSession {
 
             await new Promise((resolve) => setTimeout(resolve, 1000)); // Attendre 1 seconde pour éviter les problèmes de lecture
             await uploadRecordToS3(outputPath.replace('.pcm', '.wav'), this.stageChannel);
+            fs.unlinkSync(outputPath.replace('.pcm', '.wav'));
         });
 
         this.recordings.set(user.id, {
