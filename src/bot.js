@@ -1,6 +1,7 @@
 const {Client} = require('discord.js-selfbot-v13');
 const {RecordingSession} = require('./recorder');
 const config = require('../config.json');
+const {startLambdaToTranscriptONU} = require("./aws_upload");
 
 const waitingList = []; // Liste des salons à enregistrer, partagée entre tous les bots
 const activeBots = []; // Liste des bots actifs
@@ -72,6 +73,8 @@ function initializeBots() {
                 const bot = activeBots.find((bot) => bot.client === client);
                 if (bot.recordingSession) {
                     await bot.recordingSession.stop();
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    await startLambdaToTranscriptONU(oldChannel.id);
                 }
                 bot.isBusy = false;
 

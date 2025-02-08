@@ -1,6 +1,7 @@
 const fs = require("fs");
 const config = require("../config.json");
 const path = require("path");
+const {AbortController} = require("abort-controller");
 
 let S3Client, PutObjectCommand;
 
@@ -85,4 +86,31 @@ function channelIdRemapped(channelId) {
     }
 }
 
-module.exports = {uploadRecordToS3, channelIdRemapped};
+async function startLambdaToTranscriptONU(channelId) {
+    const server = channelIdRemapped(channelId);
+    if (server === channelId) {
+        console.error("Le salon spécifié n'est pas un salon ONU.");
+        return;
+    }
+    const date = new Date().toISOString().split("T")[0]; // Format YYYY-MM-DD
+
+    const url = `${config.AWS_TRANSCRIBE_URL}/${server}/${date}`;
+    const controller = new AbortController();
+    const {signal} = controller;
+
+    try {
+        const fetchPromise = fetch(url, {signal});
+
+        // Annule la requête après 1s
+        setTimeout(() => {
+            controller.abort();
+            console.log("Requête annulée.");
+        }, 1000);
+        await fetchPromise;
+    } catch (error) {
+        console.log("La requête a bien été envoyée.");
+    }
+
+}
+
+module.exports = {uploadRecordToS3, channelIdRemapped, startLambdaToTranscriptONU};
