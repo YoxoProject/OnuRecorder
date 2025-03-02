@@ -59,7 +59,7 @@ function channelIdRemapped(channelId) {
             return "MOCHA";
         case "1142876034967027762":
             return "BLUE";
-        case "1142876353801228348":
+        case "1333441486145982474":
             return "ORANGE";
         case "1234150236293828678":
             return "YELLOW";
