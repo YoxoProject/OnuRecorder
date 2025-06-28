@@ -105,7 +105,12 @@ async function assignNextAvailableBot() {
         waitingList.shift();
         const recordingSession = new RecordingSession(availableBot.client, nextChannel);
         availableBot.recordingSession = recordingSession;
-        await recordingSession.start();
+        let result = await recordingSession.start();
+        if(!result) {
+            availableBot.isBusy = false;
+            // Je push en premier dans la liste pour que le bot puisse réessayer
+            waitingList.unshift(nextChannel);
+        }
     }
     if (waitingList.length > 1 && activeBots.find((bot) => !bot.isBusy)) { // S'il reste des salons à enregistrer et qu'il reste des bots disponibles
         await assignNextAvailableBot();

@@ -20,6 +20,8 @@ class RecordingSession {
                 return;
             }
 
+            await this.stageChannel.guild.members.me.voice.disconnect();
+
             const connection = await this.client.voice.joinChannel(this.stageChannel.id, {
                 selfMute: true,
                 selfDeaf: true,
@@ -41,8 +43,10 @@ class RecordingSession {
                     }
                 }
             });
+            return true;
         } catch (error) {
             console.error(`Erreur lors de la connexion au salon : ${error}`);
+            return false;
         }
     }
 
