@@ -67,7 +67,7 @@ function initializeBots() {
 
             const oldChannel = oldState.channel;
             const bot = activeBots.find((bot) => bot.client === client);
-            if (oldChannel && oldChannel.type === 'GUILD_STAGE_VOICE' && bot.recordingSession && oldChannel.name === bot.recordingSession.stageChannel.name) {
+            if (oldChannel && oldChannel.type === 'GUILD_STAGE_VOICE' && bot.recordingSession && oldChannel.name === bot.recordingSession.stageChannel.name && bot.recordingSession.recordstart) {
                 console.log(`Déconnexion du salon : ${oldChannel.name}`);
 
                 const bot = activeBots.find((bot) => bot.client === client);
@@ -112,7 +112,7 @@ async function assignNextAvailableBot() {
             waitingList.unshift(nextChannel);
         }
     }
-    if (waitingList.length > 1 && activeBots.find((bot) => !bot.isBusy)) { // S'il reste des salons à enregistrer et qu'il reste des bots disponibles
+    if (waitingList.length >= 1 && activeBots.find((bot) => !bot.isBusy) !== undefined) { // S'il reste des salons à enregistrer et qu'il reste des bots disponibles
         await assignNextAvailableBot();
     }
 }

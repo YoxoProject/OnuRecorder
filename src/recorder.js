@@ -11,6 +11,7 @@ class RecordingSession {
         this.recordings = new Map();
         this.MAX_SILENCE_MILLIS = 30 * 1000; // 30 secondes
         this.interval = null;
+        this.recordstart = false
     }
 
     async start() {
@@ -20,13 +21,26 @@ class RecordingSession {
                 return;
             }
 
-            await this.stageChannel.guild.members.me.voice.disconnect();
+            let connection;
+            let attempts = 0;
 
-            const connection = await this.client.voice.joinChannel(this.stageChannel.id, {
-                selfMute: true,
-                selfDeaf: true,
-                selfVideo: false,
-            });
+            while (!connection) {
+                try {
+                    await this.stageChannel.guild.members.me.voice.disconnect();
+
+                    connection = await this.client.voice.joinChannel(this.stageChannel.id, {
+                        selfMute: true,
+                        selfDeaf: true,
+                        selfVideo: false,
+                    });
+                } catch (_) {
+                    if (attempts === 10) {
+                        return false
+                    }
+                    console.error(`Échec de la connexion au salon : ${this.stageChannel.name}, tentative ${attempts + 1}`);
+                    attempts++;
+                }
+            }
 
             console.log(`Enregistrement commencé pour le salon : ${this.stageChannel.name}`);
 
@@ -43,9 +57,10 @@ class RecordingSession {
                     }
                 }
             });
+            this.recordstart = true;
             return true;
         } catch (error) {
-            console.error(`Erreur lors de la connexion au salon : ${error}`);
+            console.error(`Erreur lors de la connexion au salon  ${this.stageChannel.name} : ${error}`);
             return false;
         }
     }
